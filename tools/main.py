@@ -278,11 +278,13 @@ def main():
         logger.info("No relevant panels found")
         return
 
-    # Send initial summary message
+    # Send initial summary message with enhanced formatting
     summary_message = (
-        f"🔍 *Analysis Summary*\n"
-        f"Found {len(related_panels)} relevant panels with anomalies in the dashboard.\n"
-        f"Each panel will be posted below with its analysis."
+        f"🔍 *Automated Dashboard Analysis*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 Found *{len(related_panels)} relevant panels* with anomalies\n"
+        f"🔗 Dashboard: {grafana_dashboard_url}\n\n"
+        f"💡 *Detailed analysis for each panel will follow below*"
     )
     
     client = WebClient(token=slack_token)
@@ -295,18 +297,43 @@ def main():
     except SlackApiError as e:
         logger.error(f"Failed to send summary message: {str(e)}")
 
-    # Send each panel's information and image
+    # Enhanced panel message formatting
     for panel_info in related_panels:
         try:
+            # Create a more visually appealing header with emojis
+            header_text = (
+                f"📊 *Panel Analysis: {panel_info['title']}*\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━"
+            )
+
+            # Format metadata with relevant emojis
+            metadata_text = (
+                f"🔗 *Quick Links*\n"
+                f"• Dashboard: {grafana_dashboard_url}\n"
+                f"• Panel URL: {panel_info['render_url']}\n"
+                f"• Org ID: {panel_info['org_id']}"
+            )
+
+            # Format analysis with clear sections
+            analysis_text = panel_info['analysis'].replace(
+                "Anomaly detected:", 
+                "⚠️ *Anomaly Detected*\n"
+            )
+
             blocks = [
-                SectionBlock(text=f"📊 *Grafana Panel: {panel_info['title']}*"),
-                SectionBlock(text=f"Dashboard: {grafana_dashboard_url}"),
-                SectionBlock(text=f"Render URL: {panel_info['render_url']}"),
-                SectionBlock(text=f"Org ID: {panel_info['org_id']}"),
+                SectionBlock(text=header_text),
                 DividerBlock(),
-                SectionBlock(text=f"*Analysis:*\n{panel_info['analysis']}"),
-                ImageBlock(image_url=f"data:image/png;base64,{base64.b64encode(panel_info['image_content']).decode('utf-8')}", alt_text=panel_info['title'])
+                SectionBlock(text=metadata_text),
+                DividerBlock(),
+                SectionBlock(text=f"📝 *Analysis*\n{analysis_text}"),
+                ImageBlock(
+                    image_url=f"data:image/png;base64,{base64.b64encode(panel_info['image_content']).decode('utf-8')}", 
+                    alt_text=panel_info['title']
+                ),
+                DividerBlock(),
+                SectionBlock(text="🔍 *End of Analysis*")
             ]
+            
             client.chat_postMessage(
                 channel=channel_id,
                 thread_ts=thread_ts,
