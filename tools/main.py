@@ -5,6 +5,7 @@ import tempfile
 from urllib.parse import urlparse, parse_qs
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from slack_sdk.models.blocks import SectionBlock, DividerBlock, ImageBlock
 from litellm import completion
 import base64
 from typing import Dict, List, Tuple, Optional
@@ -297,14 +298,21 @@ def main():
     # Send each panel's information and image
     for panel_info in related_panels:
         try:
-            response_info = send_panel_to_slack(
-                panel_info,
-                slack_token,
-                channel_id,
-                thread_ts,
-                grafana_dashboard_url
+            blocks = [
+                SectionBlock(text=f"📊 *Grafana Panel: {panel_info['title']}*"),
+                SectionBlock(text=f"Dashboard: {grafana_dashboard_url}"),
+                SectionBlock(text=f"Render URL: {panel_info['render_url']}"),
+                SectionBlock(text=f"Org ID: {panel_info['org_id']}"),
+                DividerBlock(),
+                SectionBlock(text=f"*Analysis:*\n{panel_info['analysis']}"),
+                ImageBlock(image_url=f"data:image/png;base64,{base64.b64encode(panel_info['image_content']).decode('utf-8')}", alt_text=panel_info['title'])
+            ]
+            client.chat_postMessage(
+                channel=channel_id,
+                thread_ts=thread_ts,
+                blocks=blocks
             )
-            logger.info(f"Successfully sent panel {panel_info['title']}: {response_info}")
+            logger.info(f"Successfully sent panel {panel_info['title']}")
         except Exception as e:
             logger.error(f"Failed to send panel {panel_info['title']}: {str(e)}")
 
