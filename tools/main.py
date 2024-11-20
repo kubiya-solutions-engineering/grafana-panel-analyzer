@@ -225,52 +225,57 @@ def send_panel_to_slack(
     Send a single panel's information and image to Slack
     Returns the Slack response info
     """
-    # Split the message into two parts to avoid token length issues
-    metadata_message = (
-        f"📊 *Grafana Panel: {panel_info['title']}*\n"
-        f"Dashboard: {grafana_dashboard_url}\n"
-        f"Render URL: {panel_info['render_url']}\n"
-        f"Org ID: {panel_info['org_id']}"
-    )
-    
-    analysis_message = f"*Analysis:*\n{panel_info['analysis']}"
-    
     client = WebClient(token=slack_token)
     
-    # Send metadata first
-    try:
-        client.chat_postMessage(
-            channel=channel_id,
-            thread_ts=thread_ts,
-            text=metadata_message
-        )
-    except SlackApiError as e:
-        logger.error(f"Failed to send metadata message: {str(e)}")
-    
-    # Send analysis
-    try:
-        client.chat_postMessage(
-            channel=channel_id,
-            thread_ts=thread_ts,
-            text=analysis_message
-        )
-    except SlackApiError as e:
-        logger.error(f"Failed to send analysis message: {str(e)}")
-    
-    # Send image
+    # First upload the image
     with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
         temp_file.write(panel_info['image_content'])
         temp_file_path = temp_file.name
         
     try:
-        slack_response = send_slack_file_to_thread(
-            slack_token,
-            channel_id,
-            thread_ts,
-            temp_file_path,
-            "Panel Image"  # Simplified comment for image
+        # Upload the image first
+        file_upload = client.files_upload_v2(
+            channel=channel_id,
+            file=temp_file_path,
+            thread_ts=thread_ts
         )
-        return extract_slack_response_info(slack_response)
+        
+        # Get the image URL from the upload response
+        image_url = file_upload['files'][0]['url_private']
+        
+        # Create blocks with the uploaded image URL
+        blocks = [
+            SectionBlock(text=f"📊 *Panel Analysis: {panel_info['title']}*"),
+            DividerBlock(),
+            SectionBlock(text=(
+                f"🔗 *Quick Links*\n"
+                f"• Dashboard: {grafana_dashboard_url}\n"
+                f"• Panel URL: {panel_info['render_url']}\n"
+                f"• Org ID: {panel_info['org_id']}"
+            )),
+            DividerBlock(),
+            SectionBlock(text=f"📝 *Analysis*\n{panel_info['analysis']}"),
+            ImageBlock(
+                image_url=image_url,
+                alt_text=panel_info['title']
+            ),
+            DividerBlock(),
+            SectionBlock(text="🔍 *End of Analysis*")
+        ]
+        
+        # Send the message with blocks
+        client.chat_postMessage(
+            channel=channel_id,
+            thread_ts=thread_ts,
+            blocks=blocks
+        )
+        
+        logger.info(f"Successfully sent panel {panel_info['title']}")
+        return extract_slack_response_info(file_upload)
+        
+    except SlackApiError as e:
+        logger.error(f"Failed to send panel {panel_info['title']}: {str(e)}")
+        raise
     finally:
         os.remove(temp_file_path)
 
