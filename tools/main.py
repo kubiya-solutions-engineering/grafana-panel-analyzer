@@ -18,11 +18,15 @@ IMAGE_WIDTH = 1000
 IMAGE_HEIGHT = 500
 TIME_RANGE = "1h"
 
-# Add at the top of the file
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging based on KUBIYA_DEBUG environment variable
+if os.getenv('KUBIYA_DEBUG') == '1':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+else:
+    logging.basicConfig(level=logging.CRITICAL)  # Only log critical errors
+
 logger = logging.getLogger(__name__)
 
 def generate_grafana_api_url(grafana_dashboard_url: str) -> Tuple[str, str]:
