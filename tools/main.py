@@ -345,46 +345,13 @@ def main():
     # Enhanced panel message formatting
     for panel_info in related_panels:
         try:
-            # Create a more visually appealing header with emojis
-            header_text = (
-                f"📊 *Panel Analysis: {panel_info['title']}*\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━"
-            )
-
-            # Format metadata with relevant emojis
-            metadata_text = (
-                f"🔗 *Quick Links*\n"
-                f"• Dashboard: {grafana_dashboard_url}\n"
-                f"• Panel URL: {panel_info['render_url']}\n"
-                f"• Org ID: {panel_info['org_id']}"
-            )
-
-            # Format analysis with clear sections
-            analysis_text = panel_info['analysis'].replace(
-                "Anomaly detected:", 
-                "⚠️ *Anomaly Detected*\n"
-            )
-
-            blocks = [
-                SectionBlock(text=header_text),
-                DividerBlock(),
-                SectionBlock(text=metadata_text),
-                DividerBlock(),
-                SectionBlock(text=f"📝 *Analysis*\n{analysis_text}"),
-                ImageBlock(
-                    image_url=f"data:image/png;base64,{base64.b64encode(panel_info['image_content']).decode('utf-8')}", 
-                    alt_text=panel_info['title']
-                ),
-                DividerBlock(),
-                SectionBlock(text="🔍 *End of Analysis*")
-            ]
-            
-            client.chat_postMessage(
-                channel=channel_id,
+            send_panel_to_slack(
+                panel_info=panel_info,
+                slack_token=slack_token,
+                channel_id=channel_id,
                 thread_ts=thread_ts,
-                blocks=blocks
+                grafana_dashboard_url=grafana_dashboard_url
             )
-            logger.info(f"Successfully sent panel {panel_info['title']}")
         except Exception as e:
             logger.error(f"Failed to send panel {panel_info['title']}: {str(e)}")
 
