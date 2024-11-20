@@ -11,6 +11,8 @@ import base64
 from typing import Dict, List, Tuple, Optional
 import logging
 import json
+import io
+from PIL import Image
 
 # Constants
 DEFAULT_ORG_ID = "1"
@@ -75,9 +77,21 @@ def download_panel_image(render_url: str, api_key: str, panel_title: str) -> Opt
     try:
         response = requests.get(render_url, headers={"Authorization": f"Bearer {api_key}"}, stream=True)
         response.raise_for_status()
-        return response.content
+        
+        # Compress the image before returning
+        image = Image.open(io.BytesIO(response.content))
+        compressed_image = io.BytesIO()
+        # Convert to RGB if image is in RGBA mode
+        if image.mode == 'RGBA':
+            image = image.convert('RGB')
+        # Save with reduced quality and size
+        image.save(compressed_image, format='JPEG', quality=70, optimize=True)
+        return compressed_image.getvalue()
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to download panel image {panel_title}: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to process panel image {panel_title}: {str(e)}")
         return None
 
 def send_slack_file_to_thread(token, channel_id, thread_ts, file_path, initial_comment):
@@ -211,15 +225,40 @@ def send_panel_to_slack(
     Send a single panel's information and image to Slack
     Returns the Slack response info
     """
-    initial_comment = (
+    # Split the message into two parts to avoid token length issues
+    metadata_message = (
         f"📊 *Grafana Panel: {panel_info['title']}*\n"
         f"Dashboard: {grafana_dashboard_url}\n"
         f"Render URL: {panel_info['render_url']}\n"
-        f"Org ID: {panel_info['org_id']}\n\n"
-        f"*Analysis:*\n{panel_info['analysis']}"
+        f"Org ID: {panel_info['org_id']}"
     )
     
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+    analysis_message = f"*Analysis:*\n{panel_info['analysis']}"
+    
+    client = WebClient(token=slack_token)
+    
+    # Send metadata first
+    try:
+        client.chat_postMessage(
+            channel=channel_id,
+            thread_ts=thread_ts,
+            text=metadata_message
+        )
+    except SlackApiError as e:
+        logger.error(f"Failed to send metadata message: {str(e)}")
+    
+    # Send analysis
+    try:
+        client.chat_postMessage(
+            channel=channel_id,
+            thread_ts=thread_ts,
+            text=analysis_message
+        )
+    except SlackApiError as e:
+        logger.error(f"Failed to send analysis message: {str(e)}")
+    
+    # Send image
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
         temp_file.write(panel_info['image_content'])
         temp_file_path = temp_file.name
         
@@ -229,7 +268,7 @@ def send_panel_to_slack(
             channel_id,
             thread_ts,
             temp_file_path,
-            initial_comment
+            "Panel Image"  # Simplified comment for image
         )
         return extract_slack_response_info(slack_response)
     finally:
