@@ -18,9 +18,10 @@ IMAGE_WIDTH = 1000
 IMAGE_HEIGHT = 500
 TIME_RANGE = "1h"
 
-# Add at the top of the file
+# Update the logging configuration to respect KUBIYA_DEBUG environment variable
+log_level = logging.DEBUG if os.environ.get('KUBIYA_DEBUG') else logging.WARNING
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
