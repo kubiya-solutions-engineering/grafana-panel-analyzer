@@ -22,7 +22,8 @@ TIME_RANGE = "1h"
 if os.getenv('KUBIYA_DEBUG') == '1':
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
     )
 else:
     logging.basicConfig(level=logging.CRITICAL)  # Only log critical errors
@@ -163,15 +164,19 @@ OR
         return None
 
 def find_related_panels(panels: List[Tuple[str, int]], alert_info: Dict, grafana_dashboard_url: str, grafana_api_key: str) -> List[Dict]:
+    logger.debug(f"Starting panel analysis for {len(panels)} panels")
     related_panels = []
     for panel_title, panel_id in panels:
         logger.info(f"Analyzing panel: {panel_title}")
+        logger.debug(f"Generating render URL for panel ID: {panel_id}")
         render_url, org_id = generate_grafana_render_url(grafana_dashboard_url, panel_id)
         image_content = download_panel_image(render_url, grafana_api_key, panel_title)
         
         if image_content:
+            logger.debug(f"Successfully downloaded image for panel: {panel_title}")
             analysis_result = analyze_image_with_vision_model(image_content, panel_title, alert_info)
             if analysis_result:
+                logger.info(f"Found relevant panel: {panel_title}")
                 panel_info = {
                     "title": panel_title,
                     "image_content": image_content,
@@ -183,6 +188,7 @@ def find_related_panels(panels: List[Tuple[str, int]], alert_info: Dict, grafana
         else:
             logger.warning(f"Failed to download image for panel: {panel_title}")
 
+    logger.debug(f"Found {len(related_panels)} relevant panels")
     return related_panels
 
 def find_grafana_url(obj) -> Optional[str]:
@@ -348,4 +354,8 @@ def main():
             logger.error(f"Failed to send panel {panel_info['title']}: {str(e)}")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger.critical(f"Unhandled exception in main: {str(e)}", exc_info=True)
+        raise
